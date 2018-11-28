@@ -434,3 +434,30 @@ func (s *SimpleSuite) TestKeepTrailingSlash(c *check.C) {
 
 	http.DefaultClient.CheckRedirect = oldCheckRedirect
 }
+
+func (s *SimpleSuite) TestRemoveTrailingSlash(c *check.C) {
+	c.Log("Running TestRemoveTrailingSlash")
+	file := s.adaptFile(c, "fixtures/remove_trailing_slash.toml", struct {
+		KeepTrailingSlash bool
+	}{true})
+	defer os.Remove(file)
+
+	cmd, output := s.traefikCmd(withConfigFile(file))
+	defer output(c)
+
+	err := cmd.Start()
+	c.Assert(err, checker.IsNil)
+	defer cmd.Process.Kill()
+
+	oldCheckRedirect := http.DefaultClient.CheckRedirect
+	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+                fmt.Println(http.ErrUseLastResponse)
+		return http.ErrUseLastResponse
+	}
+
+	err = try.GetRequest("http://127.0.0.1:8000/test/foo/", 1*time.Second, try.StatusCodeIs(http.StatusMovedPermanently))
+	c.Assert(err, checker.IsNil)
+	c.Check(42, checker.Equals, "42")
+
+	http.DefaultClient.CheckRedirect = oldCheckRedirect
+}
